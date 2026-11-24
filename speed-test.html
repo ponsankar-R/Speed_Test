@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Booster Speed Test: Before and After</title>
+<style>
+  :root{
+    --bg:#eef2f5; --card:#ffffff; --ink:#14213d; --muted:#5d6b82; --line:#d9e0e8;
+    --before:#e07a1f; --after:#0f9d8a; --bad:#c0392b;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);padding:28px 16px 48px;line-height:1.5}
+  .wrap{max-width:960px;margin:0 auto}
+  header{margin-bottom:22px}
+  h1{font-size:1.7rem;letter-spacing:-.01em}
+  header p{color:var(--muted);max-width:60ch;margin-top:4px}
+
+  .meters{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;text-align:center}
+  .card h2{font-size:1.15rem;margin-bottom:2px}
+  .before h2{color:var(--before)} .after h2{color:var(--after)}
+  .sub{color:var(--muted);font-size:.85rem}
+
+  .gauge{width:100%;max-width:320px;display:block;margin:6px auto 0}
+  .track{fill:none;stroke:#e5eaf0;stroke-width:12;stroke-linecap:round}
+  .arc{fill:none;stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .25s linear}
+  .before .arc{stroke:var(--before)} .after .arc{stroke:var(--after)}
+  .needle line{stroke:var(--ink);stroke-width:2.5;stroke-linecap:round}
+  .needle{transition:transform .25s linear}
+  .hub{fill:var(--ink)}
+  .tick{font-size:7px;fill:var(--muted);text-anchor:middle}
+
+  .val{margin-top:-6px;font-size:2.4rem;font-weight:700;font-variant-numeric:tabular-nums}
+  .val small{font-size:.9rem;font-weight:500;color:var(--muted);margin-left:4px}
+  .phase{min-height:1.4em;color:var(--muted);font-size:.9rem;margin-bottom:12px}
+  .phase.err{color:var(--bad)}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+  .stats div{background:#f5f8fa;border-radius:10px;padding:8px 4px}
+  .stats b{display:block;font-size:1.05rem;font-variant-numeric:tabular-nums}
+  .stats span{font-size:.75rem;color:var(--muted)}
+
+  button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px 20px;color:#fff;cursor:pointer;width:100%}
+  .before button{background:var(--before)} .after button{background:var(--after)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);width:auto}
+
+  #analytics{margin-top:22px;text-align:left;display:none}
+  #analytics.show{display:block}
+  #analytics h2{font-size:1.3rem;margin-bottom:10px}
+  .verdict{padding:14px 16px;border-radius:10px;font-weight:600;margin-bottom:18px;background:#e7f6f3;color:#0b6b5d}
+  .verdict.worse{background:#fbeaea;color:var(--bad)}
+  .verdict.same{background:#f1f3f6;color:var(--muted)}
+
+  .metric{margin-bottom:18px}
+  .metric-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;flex-wrap:wrap;gap:4px}
+  .metric-head b{font-size:1rem}
+  .delta{font-weight:700}
+  .delta.up{color:var(--after)} .delta.down{color:var(--bad)}
+  .bar-row{display:grid;grid-template-columns:60px 1fr 90px;align-items:center;gap:10px;margin:4px 0;font-size:.85rem}
+  .bar-bg{background:#eef2f5;border-radius:6px;height:16px;overflow:hidden}
+  .bar{height:100%;border-radius:6px;transition:width .6s ease}
+  .bar.b{background:var(--before)} .bar.a{background:var(--after)}
+  .bar-row .n{text-align:right;font-variant-numeric:tabular-nums}
+
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:.92rem}
+  th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600}
+  .actions{margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .note{color:var(--muted);font-size:.8rem;margin-top:14px}
+
+  @media (max-width:720px){.meters{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:reduce){.arc,.needle,.bar{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Booster Speed Test</h1>
+    <p>Run <b>Before</b> without the passive booster, connect the booster, then run <b>After</b>. When both are done, the comparison appears below.</p>
+  </header>
+
+  <div class="meters" id="meters"></div>
+
+  <section class="card" id="analytics" aria-live="polite">
+    <h2>Analytics</h2>
+    <div id="verdict" class="verdict"></div>
+    <div id="metrics"></div>
+    <table>
+      <thead><tr><th>Measure</th><th>Before</th><th>After</th><th>Change</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="actions">
+      <button class="ghost" id="resetBtn">Reset both tests</button>
+    </div>
+    <p class="note">Speeds change from moment to moment. For a fair result, repeat each test two or three times at the same location and time of day.</p>
+  </section>
+</div>
+
+<script>
+const DL = "https://speed.cloudflare.com/__down";
+const UL = "https://speed.cloudflare.com/__up";
+const MAX = 1000;                       // gauge maximum (Mbps)
+const ARC = Math.PI * 80;               // arc length
+const TICKS = [0, 10, 50, 100, 250, 500, 1000];
+const results = { before: null, after: null };
+let busy = false;
+
+const $ = id => document.getElementById(id);
+const frac = v => Math.sqrt(Math.min(Math.max(v, 0), MAX) / MAX);   // non-linear scale so slow speeds are readable
+
+/* ---------- build the two meters ---------- */
+function meterHTML(k, title, hint, btn) {
+  return `<section class="card ${k}">
+    <h2>${title}</h2>
+    <div class="sub">${hint}</div>
+    <svg class="gauge" viewBox="0 0 200 118" role="img" aria-label="${title} speed meter">
+      <path class="track" d="M20 100 A80 80 0 0 1 180 100"/>
+      <path class="arc" id="${k}-arc" d="M20 100 A80 80 0 0 1 180 100" stroke-dasharray="${ARC}" stroke-dashoffset="${ARC}"/>
+      <g id="${k}-ticks"></g>
+      <g class="needle" id="${k}-needle" style="transform-origin:100px 100px"><line x1="100" y1="100" x2="34" y2="100"/></g>
+      <circle class="hub" cx="100" cy="100" r="5"/>
+    </svg>
+    <div class="val"><span id="${k}-num">0.0</span><small>Mbps</small></div>
+    <div class="phase" id="${k}-phase">Ready</div>
+    <div class="stats">
+      <div><b id="${k}-ping">–</b><span>Ping (ms)</span></div>
+      <div><b id="${k}-down">–</b><span>Download</span></div>
+      <div><b id="${k}-up">–</b><span>Upload</span></div>
+    </div>
+    <button id="${k}-btn">${btn}</button>
+  </section>`;
+}
+$("meters").innerHTML =
+  meterHTML("before", "Before", "Without the booster", "Start Before test") +
+  meterHTML("after",  "After",  "With the booster connected", "Start After test");
+
+["before", "after"].forEach(k => {
+  const g = $(k + "-ticks");
+  TICKS.forEach(t => {
+    const a = Math.PI * (1 - frac(t));
+    const x = 100 + 92 * Math.cos(a), y = 103 - 92 * Math.sin(a) + 0;
+    g.insertAdjacentHTML("beforeend", `<text class="tick" x="${x.toFixed(1)}" y="${y.toFixed(1)}">${t}</text>`);
+  });
+  $(k + "-btn").addEventListener("click", () => runTest(k));
+});
+
+/* ---------- gauge helpers ---------- */
+function setGauge(k, v) {
+  const f = frac(v);
+  $(k + "-arc").style.strokeDashoffset = ARC * (1 - f);
+  $(k + "-needle").style.transform = `rotate(${f * 180}deg)`;
+  $(k + "-num").textContent = v.toFixed(1);
+}
+function setPhase(k, text, err) {
+  const el = $(k + "-phase");
+  el.textContent = text;
+  el.classList.toggle("err", !!err);
+}
+function setButtons() {
+  ["before", "after"].forEach(k => {
+    const b = $(k + "-btn");
+    b.disabled = busy;
+    b.textContent = results[k] ? `Test ${k} again` : `Start ${k === "before" ? "Before" : "After"} test`;
+  });
+}
+
+/* ---------- measurements ---------- */
+async function measurePing() {
+  const times = [];
+  for (let i = 0; i < 6; i++) {
+    const s = performance.now();
+    await fetch(`${DL}?bytes=0&r=${Math.random()}`, { cache: "no-store" });
+    times.push(performance.now() - s);
+  }
+  times.shift();                                   // drop the first (connection setup)
+  return times.reduce((a, b) => a + b, 0) / times.length;
+}
+
+async function measureDownload(onTick) {
+  const ctrl = new AbortController();
+  const t0 = performance.now();
+  let bytes = 0;
+  const mbps = () => bytes * 8 / 1e6 / ((performance.now() - t0) / 1000);
+  const stop = setTimeout(() => ctrl.abort(), 8000);
+  const tick = setInterval(() => onTick(mbps()), 150);
+  const worker = async () => {
+    try {
+      const r = await fetch(`${DL}?bytes=100000000&r=${Math.random()}`, { signal: ctrl.signal, cache: "no-store" });
+      const reader = r.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.length;
+      }
+    } catch (e) { if (e.name !== "AbortError") throw e; }
+  };
+  try { await Promise.all([1, 2, 3, 4].map(worker)); }
+  finally { clearTimeout(stop); clearInterval(tick); }
+  if (!bytes) throw new Error("download failed");
+  return mbps();
+}
+
+function measureUpload(onTick) {
+  return new Promise((resolve, reject) => {
+    const LIMIT = 7000, t0 = performance.now();
+    const blob = new Blob([new Uint8Array(5e6)]);
+    const xhrs = [];
+    let bytes = 0, done = false, alive = 3;
+    const mbps = () => bytes * 8 / 1e6 / ((performance.now() - t0) / 1000);
+    const finish = () => {
+      if (done) return;
+      done = true; clearInterval(tick);
+      const result = mbps();
+      xhrs.forEach(x => x.abort());
+      bytes > 0 ? resolve(result) : reject(new Error("upload failed"));
+    };
+    const tick = setInterval(() => {
+      onTick(mbps());
+      if (performance.now() - t0 > LIMIT) finish();
+    }, 150);
+    const run = () => {
+      if (done) return;
+      const x = new XMLHttpRequest();
+      let last = 0;
+      xhrs.push(x);
+      x.open("POST", `${UL}?r=${Math.random()}`);
+      x.upload.onprogress = e => { bytes += e.loaded - last; last = e.loaded; };
+      x.onload = run;
+      x.onerror = () => { if (--alive === 0) finish(); };
+      x.send(blob);
+    };
+    for (let i = 0; i < 3; i++) run();
+  });
+}
+
+/* ---------- run one test ---------- */
+async function runTest(k) {
+  if (busy) return;
+  busy = true; setButtons();
+  results[k] = null;
+  ["ping", "down", "up"].forEach(s => $(`${k}-${s}`).textContent = "–");
+  setGauge(k, 0);
+  analytics();
+  const r = {};
+  try {
+    setPhase(k, "Measuring ping…");
+    r.ping = await measurePing();
+    $(k + "-ping").textContent = r.ping.toFixed(0);
+
+    setPhase(k, "Measuring download…");
+    r.down = await measureDownload(v => setGauge(k, v));
+    setGauge(k, r.down);
+    $(k + "-down").textContent = r.down.toFixed(1);
+
+    setPhase(k, "Measuring upload…");
+    setGauge(k, 0);
+    r.up = await measureUpload(v => setGauge(k, v));
+    setGauge(k, r.up);
+    $(k + "-up").textContent = r.up.toFixed(1);
+
+    setPhase(k, "Complete. Gauge shows upload speed.");
+    results[k] = r;
+  } catch (e) {
+    setPhase(k, "Test failed. Check your internet connection and try again.", true);
+    setGauge(k, 0);
+  }
+  busy = false; setButtons(); analytics();
+}
+
+/* ---------- analytics ---------- */
+const pct = (a, b) => ((b - a) / a) * 100;
+const fmtPct = p => (p > 0 ? "+" : "") + p.toFixed(1) + "%";
+
+function analytics() {
+  const box = $("analytics");
+  const { before: b, after: a } = results;
+  if (!a || !b) { box.classList.remove("show"); return; }
+
+  const down = pct(b.down, a.down);
+  const up = pct(b.up, a.up);
+  const ping = pct(b.ping, a.ping) * -1;           // lower ping is better, so flip the sign
+  const avg = (down + up) / 2;
+
+  const v = $("verdict");
+  v.className = "verdict";
+  if (avg > 5) v.textContent = `The booster helped: on average, speed improved by ${avg.toFixed(1)}%.`;
+  else if (avg < -5) { v.classList.add("worse"); v.textContent = `Speed dropped by ${Math.abs(avg).toFixed(1)}% on average with the booster.`; }
+  else { v.classList.add("same"); v.textContent = "No significant change (within ±5%). Try repeating both tests."; }
+
+  const rows = [
+    { name: "Download speed", unit: "Mbps", before: b.down, after: a.down, change: down, digits: 1 },
+    { name: "Upload speed",   unit: "Mbps", before: b.up,   after: a.up,   change: up,   digits: 1 },
+    { name: "Ping (latency)", unit: "ms",   before: b.ping, after: a.ping, change: ping, digits: 0 }
+  ];
+
+  $("metrics").innerHTML = rows.map(r => {
+    const max = Math.max(r.before, r.after) || 1;
+    const cls = r.change >= 0 ? "up" : "down";
+    return `<div class="metric">
+      <div class="metric-head"><b>${r.name}</b><span class="delta ${cls}">${fmtPct(r.change)} ${r.name.startsWith("Ping") ? "(lower is better)" : ""}</span></div>
+      <div class="bar-row"><span>Before</span><div class="bar-bg"><div class="bar b" style="width:${r.before / max * 100}%"></div></div><span class="n">${r.before.toFixed(r.digits)} ${r.unit}</span></div>
+      <div class="bar-row"><span>After</span><div class="bar-bg"><div class="bar a" style="width:${r.after / max * 100}%"></div></div><span class="n">${r.after.toFixed(r.digits)} ${r.unit}</span></div>
+    </div>`;
+  }).join("");
+
+  $("tbody").innerHTML = rows.map(r =>
+    `<tr><td>${r.name}</td><td>${r.before.toFixed(r.digits)} ${r.unit}</td><td>${r.after.toFixed(r.digits)} ${r.unit}</td>
+     <td class="delta ${r.change >= 0 ? "up" : "down"}">${fmtPct(r.change)}</td></tr>`).join("");
+
+  box.classList.add("show");
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+$("resetBtn").addEventListener("click", () => {
+  results.before = results.after = null;
+  ["before", "after"].forEach(k => {
+    setGauge(k, 0); setPhase(k, "Ready");
+    ["ping", "down", "up"].forEach(s => $(`${k}-${s}`).textContent = "–");
+  });
+  setButtons(); analytics();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+</script>
+</body>
+</html>
